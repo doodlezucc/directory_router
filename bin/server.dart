@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -19,7 +20,6 @@ final client = http.Client();
 
 void main(List<String> args) async {
   var config = await loadRoutes();
-  print('Loaded config file');
 
   var parser = ArgParser()..addOption('port', abbr: 'p');
   var result = parser.parse(args);
@@ -48,10 +48,59 @@ void main(List<String> args) async {
       .addHandler((request) => _echoRequest(request, config));
 
   listenToExit();
+  await buildWebApps(config);
   await startExternalServers(config);
 
   var server = await io.serve(handler, config.hostname, port);
-  print('Serving at http://${server.address.host}:${server.port}');
+  print('\nServing at http://${server.address.host}:${server.port}\n');
+}
+
+Future<void> buildWebApps(Config config) async {
+  for (var frontend in config.frontends.values) {
+    if (frontend.build_entry != null) {
+      await dart2Js(File(path.join(frontend.directory, frontend.build_entry)));
+    }
+  }
+}
+
+Future<void> dart2Js(File entry) async {
+  print('Building web app "${entry.path}"...');
+  if (!await entry.exists()) {
+    return stderr.writeln('- Entry file does not exist!\n');
+  }
+
+  var output = File(entry.path + '.js');
+
+  if (await output.exists()) {
+    var outStat = await output.stat();
+    var dartStat = await entry.stat();
+    if (outStat.modified.isAfter(dartStat.modified)) {
+      return print('- Already up to date!\n');
+    }
+  }
+
+  var process = await Process.start(
+    'dart2js',
+    [
+      '--no-source-maps',
+      '-o',
+      output.path,
+      entry.path,
+    ],
+    runInShell: true,
+  );
+
+  process.stdout.listen((data) {
+    var s = utf8.decode(data).trim();
+    print(s.split('\n').map((line) => '- $line').join('\n'));
+  });
+  process.stderr.listen((data) {
+    stderr.add('- '.codeUnits + data);
+  });
+
+  await process.exitCode;
+  print('');
+  return File(output.path + '.deps').delete();
 }
 
 void onExit() {
