@@ -9,19 +9,23 @@ class Config {
   Config(YamlMap yaml)
       : hostname = yaml['hostname'],
         port = yaml['port'],
-        backends = Map.from(yaml['backend']).map((key, y) => MapEntry(
-            key,
-            Backend(
-              y['server_entry'],
-              y['hostname'],
-              y['port'],
-            ))),
-        frontends = Map.from(yaml['frontend']).map((key, y) => MapEntry(
-            key,
-            Frontend(
-              y['directory'],
-              y['build_entry'],
-            )));
+        backends = yaml['backend'] == null
+            ? {}
+            : Map.from(yaml['backend']).map((key, y) => MapEntry(
+                key,
+                Backend(
+                  y['server_entry'],
+                  y['hostname'],
+                  y['port'],
+                ))),
+        frontends = yaml['frontend'] == null
+            ? {}
+            : Map.from(yaml['frontend']).map((key, y) => MapEntry(
+                key,
+                Frontend(
+                  y['directory'],
+                  y['build_entry'],
+                )));
 }
 
 class Backend {
