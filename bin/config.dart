@@ -1,25 +1,40 @@
+import 'package:yaml/yaml.dart';
+
 class Config {
   String hostname;
   int port;
-  Map<String, String> frontendDirectories;
-  Map<String, String> backendDirectories;
+  Map<String, Backend> backends;
+  Map<String, Frontend> frontends;
 
-  Config(Map<String, dynamic> json)
-      : hostname = json['hostname'],
-        port = json['port'],
-        frontendDirectories = Map.from(json['frontend']),
-        backendDirectories = Map.from(json['backend']);
+  Config(YamlMap yaml)
+      : hostname = yaml['hostname'],
+        port = yaml['port'],
+        backends = Map.from(yaml['backend']).map((key, y) => MapEntry(
+            key,
+            Backend(
+              y['server_entry'],
+              y['hostname'],
+              y['port'],
+            ))),
+        frontends = Map.from(yaml['frontend']).map((key, y) => MapEntry(
+            key,
+            Frontend(
+              y['directory'],
+              y['build_entry'],
+            )));
+}
 
-  Config.example()
-      : hostname = 'localhost',
-        port = 8080,
-        frontendDirectories = {'example': '../path/to/example_web_directory'},
-        backendDirectories = {'big-app': '../path/to/dart_server/server.dart'};
+class Backend {
+  final String server_entry;
+  final String hostname;
+  final int port;
 
-  Map<String, dynamic> toJson() => {
-        'hostname': hostname,
-        'port': port,
-        'frontend': frontendDirectories,
-        'backend': backendDirectories,
-      };
+  Backend(this.server_entry, this.hostname, this.port);
+}
+
+class Frontend {
+  final String directory;
+  final String build_entry;
+
+  Frontend(this.directory, this.build_entry);
 }

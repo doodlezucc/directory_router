@@ -1,0 +1,19 @@
+hostname: localhost # Where to host the router server
+port: 8080 # Which port it should run on
+
+backend:
+  # Start another local dart server (located at ..path/to/different/server.dart) and/or redirect
+  # requests like http://localhost:8080/my-big-app/about.html to http://localhost:7070/about.html
+  my-big-app:
+    # At least one of the following must be specified:
+    server_entry: ../path/to/different/server.dart # Remove this line if my-big-app already runs by itself
+    # hostname: localhost                          # Defaults to [hostname]
+    port: 7070                                     # Defaults to ++[port]
+
+frontend:
+  # Redirect requests like http://localhost:8080/web-app/index.html to the local resource "../path/to/frontend/directory/index.html"
+  web-app:
+    directory: ../path/to/frontend/directory
+    # Optional: Convert "main.dart" inside [directory] to JavaScript if "main.dart.js" is outdated
+    # (useful if "web-app" is a dart web app)
+    build_entry: main.dart

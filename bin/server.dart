@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -7,41 +6,16 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as io;
+import 'package:yaml/yaml.dart';
 
 import 'config.dart';
 import 'external_servers.dart';
 
-const filePath = 'routes.json';
+const templateRoutes = 'bin/router_template.yaml';
+const filePath = 'router.yaml';
 
-final Map<String, ServerProcess> directoryProcesses = {};
+final Map<Backend, ServerProcess> backendProcesses = {};
 final client = http.Client();
-
-void test() async {
-  var dirSubPath = 'index.html';
-
-  var uri = Uri(
-    scheme: 'http',
-    host: 'localhost',
-    port: 8081,
-    path: dirSubPath,
-  );
-
-  var myReq = http.Request('GET', uri);
-  //..headers.addAll(request.headers)
-  //..bodyBytes = ;
-
-  var response = await client.send(myReq);
-
-  var body = await response.stream;
-
-  var shRes = Response(
-    response.statusCode,
-    body: body,
-    headers: response.headers,
-  );
-  print(shRes.statusCode);
-  print(body);
-}
 
 void main(List<String> args) async {
   var config = await loadRoutes();
@@ -78,16 +52,11 @@ void main(List<String> args) async {
 
   var server = await io.serve(handler, config.hostname, port);
   print('Serving at http://${server.address.host}:${server.port}');
-
-  //await test();
-
-  await Future.delayed(Duration(seconds: 1));
-  //onExit();
 }
 
 void onExit() {
   print('Killing external servers');
-  for (var sp in directoryProcesses.values) {
+  for (var sp in backendProcesses.values) {
     sp.process.kill();
   }
   exit(0);
@@ -105,11 +74,16 @@ void listenToExit() {
 
 Future<void> startExternalServers(Config config) async {
   var port = config.port;
-  for (var serverDartFile in config.backendDirectories.values) {
-    var name = serverDartFile;
-    directoryProcesses[name] =
-        await startExternalServer(name, ++port, serverDartFile);
-    print('Starting [$name]...');
+  for (var backend in config.backends.values) {
+    if (backend.server_entry != null) {
+      var name = backend.server_entry;
+      backendProcesses[backend] = await startExternalServer(
+        name,
+        backend.port ?? ++port,
+        backend.server_entry,
+      );
+      print('Starting "$name"');
+    }
   }
 }
 
@@ -118,14 +92,19 @@ Future<Config> loadRoutes() async {
   if (!await file.exists()) {
     await file.create();
 
-    await file
-        .writeAsString(JsonEncoder.withIndent('  ').convert(Config.example()));
+    var template = File(templateRoutes);
+    if (!await template.exists()) {
+      throw '''Could not generate routes.yaml because
+                routes_template.yaml does not exist!''';
+    }
+
+    await file.writeAsBytes(await template.readAsBytes());
     print('Created example config file at "${path.absolute(filePath)}"');
     return exit(0);
   }
 
   var data = await file.readAsString();
-  return Config(jsonDecode(data));
+  return Config(loadYaml(data));
 }
 
 String getMimeType(File f) {
@@ -162,14 +141,14 @@ Future<Response> process(Request request, String match,
 }
 
 Future<Response> processBackend(Request request, Config config) async {
-  Response response;
-  for (var entry in config.backendDirectories.entries) {
-    response = await process(request, entry.key, (subPath) async {
-      var process = directoryProcesses[entry.value];
+  for (var entry in config.backends.entries) {
+    var backend = entry.value;
+    var response = await process(request, entry.key, (subPath) async {
+      var process = backendProcesses[backend];
       var uri = Uri(
         scheme: 'http',
-        host: config.hostname,
-        port: process.port,
+        host: backend.hostname ?? config.hostname,
+        port: process?.port ?? backend.port,
         path: subPath,
         queryParameters: request.url.queryParameters,
       );
@@ -177,7 +156,7 @@ Future<Response> processBackend(Request request, Config config) async {
       var myReq = http.StreamedRequest(request.method, uri);
       request.read().listen(
             myReq.sink.add,
-            onDone: () => myReq.sink.close(),
+            onDone: myReq.sink.close,
           );
       var response = await client.send(myReq);
       var body = response.stream;
@@ -192,14 +171,17 @@ Future<Response> processBackend(Request request, Config config) async {
               (key, value) => key.toLowerCase() == 'transfer-encoding'),
       );
     });
+    if (response != null) {
+      return response;
+    }
   }
-  return response;
+  return null;
 }
 
 Future<Response> processFrontend(Request request, Config config) async {
-  for (var entry in config.frontendDirectories.entries) {
+  for (var entry in config.frontends.entries) {
     var response = await process(request, entry.key, (subPath) async {
-      var file = File(path.join(entry.value, subPath));
+      var file = File(path.join(entry.value.directory, subPath));
 
       if (await file.exists()) {
         var type = getMimeType(file);
