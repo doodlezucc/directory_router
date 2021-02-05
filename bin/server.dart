@@ -52,7 +52,7 @@ void main(List<String> args) async {
   await startExternalServers(config);
 
   var server = await io.serve(handler, config.hostname, port);
-  print('\nServing at http://${server.address.host}:${server.port}\n');
+  print('Serving at http://${server.address.host}:${server.port}\n');
 }
 
 Future<void> buildWebApps(Config config) async {
@@ -104,9 +104,11 @@ Future<void> dart2Js(File entry) async {
 }
 
 void onExit() {
-  print('Killing external servers');
-  for (var sp in backendProcesses.values) {
-    sp.process.kill();
+  if (backendProcesses.isNotEmpty) {
+    print('Killing external servers');
+    for (var sp in backendProcesses.values) {
+      sp.process.kill();
+    }
   }
   exit(0);
 }
@@ -134,6 +136,7 @@ Future<void> startExternalServers(Config config) async {
       print('Starting "$name"');
     }
   }
+  if (config.backends.isNotEmpty) print('');
 }
 
 Future<Config> loadRoutes() async {
@@ -144,7 +147,7 @@ Future<Config> loadRoutes() async {
     var template = File(templateRoutes);
     if (!await template.exists()) {
       throw '''Could not generate routes.yaml because
-                routes_template.yaml does not exist!''';
+      routes_template.yaml does not exist!''';
     }
 
     await file.writeAsBytes(await template.readAsBytes());
@@ -247,13 +250,17 @@ Future<Response> processFrontend(Request request, Config config) async {
   return null;
 }
 
-Response notFound(Request request, Config config) {
-  print('404: "${request.url}" not found.');
-  return Response.notFound('"${request.url}" not found.');
+Response logResponse(Request request, Response response) {
+  print('${DateTime.now().toIso8601String()} '
+      '${request.method.padRight(7)} [${response.statusCode}] '
+      '${request.url}');
+  return response;
 }
 
 Future<Response> _echoRequest(Request request, Config config) async {
   return (await processBackend(request, config)) ??
-      (await processFrontend(request, config)) ??
-      notFound(request, config);
+      logResponse(
+          request,
+          await processFrontend(request, config) ??
+              Response.notFound('"${request.url}" not found.'));
 }
