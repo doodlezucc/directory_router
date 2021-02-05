@@ -138,8 +138,10 @@ String getMimeType(File f) {
       return 'text/javascript';
     case '.svg':
       return 'image/svg+xml';
+    case '.ico':
+      return 'image/x-icon';
   }
-  return '';
+  return 'text/plain';
 }
 
 Future<Response> process(Request request, String match,
