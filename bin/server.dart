@@ -71,7 +71,6 @@ void main(List<String> args) async {
 
   var handler = const Pipeline()
       .addMiddleware(_fixCORS)
-      .addMiddleware(logRequests())
       .addHandler((request) => _echoRequest(request, config));
 
   listenToExit();
@@ -143,61 +142,43 @@ String getMimeType(File f) {
   return '';
 }
 
-Future<Response> _echoRequest(Request request, Config config) async {
-  for (var entry in config.frontendDirectories.entries) {
-    if (request.url.path.startsWith(entry.key)) {
-      var dirSubPath = request.url.path.substring(entry.key.length);
+Future<Response> process(Request request, String match,
+    Future<Response> Function(String subPath) generateResponse) async {
+  if (request.url.path.startsWith(match)) {
+    var dirSubPath = request.url.path.substring(match.length);
 
-      if (dirSubPath.isEmpty) {
-        return Response.seeOther(path.join(request.url.path, 'index.html'));
-      }
-      if (dirSubPath.startsWith('/')) {
-        dirSubPath = dirSubPath.substring(1);
-      }
-
-      var file = File(path.join(entry.value, dirSubPath));
-
-      if (await file.exists()) {
-        var type = getMimeType(file);
-        return Response(
-          200,
-          body: file.openRead(),
-          headers: {'Content-Type': type},
-        );
-      }
+    if (dirSubPath.isEmpty) {
+      return Response.seeOther(path.join(request.url.path, 'index.html'));
     }
+    if (dirSubPath.startsWith('/')) {
+      dirSubPath = dirSubPath.substring(1);
+    }
+
+    return generateResponse(dirSubPath);
   }
+  return null;
+}
 
+Future<Response> processBackend(Request request, Config config) async {
+  Response response;
   for (var entry in config.backendDirectories.entries) {
-    if (request.url.path.startsWith(entry.key)) {
-      var dirSubPath = request.url.path.substring(entry.key.length);
-
-      if (dirSubPath.isEmpty) {
-        return Response.seeOther(path.join(request.url.path, 'index.html'));
-      }
-      if (dirSubPath.startsWith('/')) {
-        dirSubPath = dirSubPath.substring(1);
-      }
-
+    response = await process(request, entry.key, (subPath) async {
       var process = directoryProcesses[entry.value];
       var uri = Uri(
         scheme: 'http',
         host: config.hostname,
         port: process.port,
-        path: dirSubPath,
+        path: subPath,
         queryParameters: request.url.queryParameters,
       );
 
-      var myReq = http.Request(request.method, uri);
-
+      var myReq = http.StreamedRequest(request.method, uri);
+      request.read().listen(
+            myReq.sink.add,
+            onDone: () => myReq.sink.close(),
+          );
       var response = await client.send(myReq);
-
       var body = response.stream;
-
-      // print(response.headers.entries);
-      // response.headers.forEach((key, value) {
-      //   print('"$key": "$value"');
-      // });
 
       return Response(
         response.statusCode,
@@ -208,8 +189,38 @@ Future<Response> _echoRequest(Request request, Config config) async {
           ..removeWhere(
               (key, value) => key.toLowerCase() == 'transfer-encoding'),
       );
-    }
+    });
   }
+  return response;
+}
 
+Future<Response> processFrontend(Request request, Config config) async {
+  for (var entry in config.frontendDirectories.entries) {
+    var response = await process(request, entry.key, (subPath) async {
+      var file = File(path.join(entry.value, subPath));
+
+      if (await file.exists()) {
+        var type = getMimeType(file);
+        return Response(
+          200,
+          body: file.openRead(),
+          headers: {'Content-Type': type},
+        );
+      }
+      return null;
+    });
+    if (response != null) return response;
+  }
+  return null;
+}
+
+Response notFound(Request request, Config config) {
+  print('404: "${request.url}" not found.');
   return Response.notFound('"${request.url}" not found.');
+}
+
+Future<Response> _echoRequest(Request request, Config config) async {
+  return (await processBackend(request, config)) ??
+      (await processFrontend(request, config)) ??
+      notFound(request, config);
 }
