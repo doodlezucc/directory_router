@@ -1,15 +1,47 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as io;
 
 import 'config.dart';
+import 'external_servers.dart';
 
-// For Google Cloud Run, set _hostname to '0.0.0.0'.
 const filePath = 'routes.json';
+
+final Map<String, ServerProcess> directoryProcesses = {};
+final client = http.Client();
+
+void test() async {
+  var dirSubPath = 'index.html';
+
+  var uri = Uri(
+    scheme: 'http',
+    host: 'localhost',
+    port: 8081,
+    path: dirSubPath,
+  );
+
+  var myReq = http.Request('GET', uri);
+  //..headers.addAll(request.headers)
+  //..bodyBytes = ;
+
+  var response = await client.send(myReq);
+
+  var body = await response.stream;
+
+  var shRes = Response(
+    response.statusCode,
+    body: body,
+    headers: response.headers,
+  );
+  print(shRes.statusCode);
+  print(body);
+}
 
 void main(List<String> args) async {
   var config = await loadRoutes();
@@ -42,8 +74,44 @@ void main(List<String> args) async {
       .addMiddleware(logRequests())
       .addHandler((request) => _echoRequest(request, config));
 
+  listenToExit();
+  await startExternalServers(config);
+
   var server = await io.serve(handler, config.hostname, port);
   print('Serving at http://${server.address.host}:${server.port}');
+
+  //await test();
+
+  await Future.delayed(Duration(seconds: 1));
+  //onExit();
+}
+
+void onExit() {
+  print('Killing external servers');
+  for (var sp in directoryProcesses.values) {
+    sp.process.kill();
+  }
+  exit(0);
+}
+
+void listenToExit() {
+  var shuttingDown = false;
+  ProcessSignal.sigint.watch().forEach((signal) {
+    if (!shuttingDown) {
+      shuttingDown = true;
+      onExit();
+    }
+  });
+}
+
+Future<void> startExternalServers(Config config) async {
+  var port = config.port;
+  for (var serverDartFile in config.backendDirectories.values) {
+    var name = serverDartFile;
+    directoryProcesses[name] =
+        await startExternalServer(name, ++port, serverDartFile);
+    print('Starting [$name]...');
+  }
 }
 
 Future<Config> loadRoutes() async {
@@ -76,9 +144,10 @@ String getMimeType(File f) {
 }
 
 Future<Response> _echoRequest(Request request, Config config) async {
-  for (var entry in config.pathDirectories.entries) {
+  for (var entry in config.frontendDirectories.entries) {
     if (request.url.path.startsWith(entry.key)) {
       var dirSubPath = request.url.path.substring(entry.key.length);
+
       if (dirSubPath.isEmpty) {
         return Response.seeOther(path.join(request.url.path, 'index.html'));
       }
@@ -96,6 +165,49 @@ Future<Response> _echoRequest(Request request, Config config) async {
           headers: {'Content-Type': type},
         );
       }
+    }
+  }
+
+  for (var entry in config.backendDirectories.entries) {
+    if (request.url.path.startsWith(entry.key)) {
+      var dirSubPath = request.url.path.substring(entry.key.length);
+
+      if (dirSubPath.isEmpty) {
+        return Response.seeOther(path.join(request.url.path, 'index.html'));
+      }
+      if (dirSubPath.startsWith('/')) {
+        dirSubPath = dirSubPath.substring(1);
+      }
+
+      var process = directoryProcesses[entry.value];
+      var uri = Uri(
+        scheme: 'http',
+        host: config.hostname,
+        port: process.port,
+        path: dirSubPath,
+        queryParameters: request.url.queryParameters,
+      );
+
+      var myReq = http.Request(request.method, uri);
+
+      var response = await client.send(myReq);
+
+      var body = response.stream;
+
+      // print(response.headers.entries);
+      // response.headers.forEach((key, value) {
+      //   print('"$key": "$value"');
+      // });
+
+      return Response(
+        response.statusCode,
+        body: body,
+        headers: response.headers
+          // idk why but http_parser fails if "transfer-encoding"
+          // is set to "chunked"
+          ..removeWhere(
+              (key, value) => key.toLowerCase() == 'transfer-encoding'),
+      );
     }
   }
 

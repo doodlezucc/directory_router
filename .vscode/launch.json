@@ -8,7 +8,8 @@
             "name": "directory_router",
             "request": "launch",
             "type": "dart",
-            "program": "bin/server.dart"
+            "program": "bin/server.dart",
+            "console": "terminal"
         }
     ]
 }
