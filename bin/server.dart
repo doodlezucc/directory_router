@@ -180,8 +180,8 @@ Future<Response> process(Request request, String match,
   if (request.url.path.startsWith(match)) {
     var dirSubPath = request.url.path.substring(match.length);
 
-    if (dirSubPath.isEmpty) {
-      return Response.seeOther(path.join(request.url.path, 'index'));
+    if (dirSubPath.isEmpty || dirSubPath.endsWith('/')) {
+      return Response.seeOther('/' + path.join(request.url.path, 'index'));
     }
     if (dirSubPath.startsWith('/')) {
       dirSubPath = dirSubPath.substring(1);
