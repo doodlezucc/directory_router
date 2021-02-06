@@ -159,8 +159,8 @@ Future<Config> loadRoutes() async {
   return Config(loadYaml(data));
 }
 
-String getMimeType(File f) {
-  switch (path.extension(f.path)) {
+String getMimeType(String filePath) {
+  switch (path.extension(filePath)) {
     case '.html':
       return 'text/html';
     case '.css':
@@ -172,7 +172,7 @@ String getMimeType(File f) {
     case '.ico':
       return 'image/x-icon';
   }
-  return 'text/plain';
+  return null;
 }
 
 Future<Response> process(Request request, String match,
@@ -181,7 +181,7 @@ Future<Response> process(Request request, String match,
     var dirSubPath = request.url.path.substring(match.length);
 
     if (dirSubPath.isEmpty) {
-      return Response.seeOther(path.join(request.url.path, 'index.html'));
+      return Response.seeOther(path.join(request.url.path, 'index'));
     }
     if (dirSubPath.startsWith('/')) {
       dirSubPath = dirSubPath.substring(1);
@@ -235,8 +235,9 @@ Future<Response> processFrontend(Request request, Config config) async {
     var response = await process(request, entry.key, (subPath) async {
       var file = File(path.join(entry.value.directory, subPath));
 
-      if (await file.exists()) {
-        var type = getMimeType(file);
+      if (await file.exists() ||
+          await (file = File(file.path + '.html')).exists()) {
+        var type = getMimeType(file.path) ?? 'text/plain';
         return Response(
           200,
           body: file.openRead(),
