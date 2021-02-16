@@ -75,7 +75,8 @@ Future<void> dart2Js(File entry) async {
     var outStat = await output.stat();
     var dirStat = await Directory(path.dirname(entry.path)).stat();
 
-    if (!outStat.modified.isBefore(dirStat.modified)) {
+    if (!outStat.modified
+        .isBefore(dirStat.modified.subtract(Duration(minutes: 1)))) {
       return print('- Already up to date!\n');
     }
   }
