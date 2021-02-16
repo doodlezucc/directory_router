@@ -73,8 +73,9 @@ Future<void> dart2Js(File entry) async {
 
   if (await output.exists()) {
     var outStat = await output.stat();
-    var dartStat = await entry.stat();
-    if (outStat.modified.isAfter(dartStat.modified)) {
+    var dirStat = await Directory(path.dirname(entry.path)).stat();
+
+    if (!outStat.modified.isBefore(dirStat.modified)) {
       return print('- Already up to date!\n');
     }
   }
