@@ -44,7 +44,7 @@ Future<ServerProcess> startExternalServer(
 
     out._process.kill();
     await out._process.exitCode;
-    print(' $name  -  RESTART due to changes in $file');
+    print(' $name - RESTART due to changes in $file');
     out._process = await startProcess();
   });
 

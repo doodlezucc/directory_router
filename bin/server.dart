@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as io;
+import 'package:watcher/watcher.dart';
 import 'package:yaml/yaml.dart';
 
 import 'config.dart';
@@ -16,6 +17,7 @@ const templateRoutes = 'bin/router_template.yaml';
 const filePath = 'router.yaml';
 
 final Map<Backend, ServerProcess> backendProcesses = {};
+final Map<String, Process> frontendProcesses = {};
 final client = http.Client();
 
 void main(List<String> args) async {
@@ -59,23 +61,40 @@ void main(List<String> args) async {
 Future<void> buildWebApps(Config config) async {
   for (var frontend in config.frontends.values) {
     if (frontend.build_entry != null) {
-      await dart2Js(File(path.join(frontend.directory, frontend.build_entry)));
+      var entry = File(path.join(frontend.directory, frontend.build_entry));
+
+      Future<void> build(bool force) async =>
+          await dart2Js(entry, force: force);
+
+      Watcher(frontend.directory, pollingDelay: Duration(minutes: 1))
+          .events
+          .listen((event) async {
+        var file = path.basename(event.path);
+
+        if (file.endsWith('.dart')) {
+          print('Rebuilding ${frontend.directory} due to changes in $file');
+          frontendProcesses[entry.path]?.kill(ProcessSignal.sigint);
+          await build(true);
+        }
+      });
+
+      await build(false);
     }
   }
 }
 
-Future<void> debugProcess(Process process) async {
+Future<int> debugProcess(Process process) async {
   process
     ..stdout.listen((data) {
       var s = utf8.decode(data).trim();
       print(s.split('\n').map((line) => '- $line').join('\n'));
     })
-    ..stderr.listen((data) {});
+    ..stderr.listen(stderr.add);
 
-  await process.exitCode;
+  return process.exitCode;
 }
 
-Future<void> dart2Js(File entry) async {
+Future<void> dart2Js(File entry, {bool force = false}) async {
   print('Building web app "${entry.path}"...');
   if (!await entry.exists()) {
     return stderr.writeln('- Entry file does not exist!\n');
@@ -87,18 +106,20 @@ Future<void> dart2Js(File entry) async {
     var outStat = await output.stat();
     var dirStat = await Directory(path.dirname(entry.path)).stat();
 
-    if (!outStat.modified
-        .isBefore(dirStat.modified.subtract(Duration(minutes: 1)))) {
+    if (!force &&
+        !outStat.modified
+            .isBefore(dirStat.modified.subtract(Duration(minutes: 1)))) {
       return print('- Already up to date!\n');
     }
   }
 
-  var pubProcess = await Process.start(
+  var pubProcess = frontendProcesses[entry.path] = await Process.start(
     'pub',
     ['get'],
     runInShell: true,
   );
-  await debugProcess(pubProcess);
+  frontendProcesses[entry.path] = pubProcess;
+  if (await debugProcess(pubProcess) == -1) return;
 
   print('- Compiling...');
   var compileProcess = await Process.start(
@@ -111,7 +132,8 @@ Future<void> dart2Js(File entry) async {
     ],
     runInShell: true,
   );
-  await debugProcess(compileProcess);
+  frontendProcesses[entry.path] = compileProcess;
+  if (await debugProcess(compileProcess) == -1) return;
 
   print('');
   return File(output.path + '.deps').delete();
