@@ -2,13 +2,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
+import 'package:watcher/watcher.dart';
 
 class ServerProcess {
   final String name;
   final int port;
-  final Process process;
+  Process _process;
+  Process get process => _process;
 
-  ServerProcess(this.name, this.port, this.process);
+  ServerProcess(this.name, this.port, Process process) : _process = process;
 }
 
 Future<ServerProcess> startExternalServer(
@@ -16,23 +18,35 @@ Future<ServerProcess> startExternalServer(
   var cwd = path.dirname(serverDartFile);
   if (cwd.endsWith('/bin')) cwd = path.dirname(cwd);
 
-  var process = await Process.start(
-    'dart',
-    [
-      serverDartFile,
-      '-p',
-      '$port',
-    ],
-    workingDirectory: cwd,
-  );
+  Future<Process> startProcess() async {
+    return await Process.start(
+      'dart',
+      [
+        serverDartFile,
+        '-p',
+        '$port',
+      ],
+      workingDirectory: cwd,
+    )
+      ..stdout.listen((data) {
+        var s = utf8.decode(data);
+        print(s.trimRight().split('\n').map((e) => '[$name] $e').join('\n'));
+      })
+      ..stderr.listen(stderr.add);
+  }
 
-  process.stdout.listen((data) {
-    var s = utf8.decode(data);
-    print(s.trimRight().split('\n').map((e) => '[$name] $e').join('\n'));
-  });
-  process.stderr.listen((data) {
-    stderr.add(data);
+  var process = await startProcess();
+  var out = ServerProcess(name, port, process);
+
+  Watcher(cwd, pollingDelay: Duration(minutes: 1)).events.listen((event) async {
+    var file = path.basename(event.path);
+    if (file.endsWith('FETCH_HEAD')) return; // It's a git thing
+
+    out._process.kill();
+    await out._process.exitCode;
+    print(' $name  -  RESTART due to changes in $file');
+    out._process = await startProcess();
   });
 
-  return ServerProcess(name, port, process);
+  return out;
 }
