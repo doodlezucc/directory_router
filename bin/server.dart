@@ -48,11 +48,12 @@ void main(List<String> args) async {
       .addHandler((request) => _echoRequest(request, config));
 
   listenToExit();
-  await buildWebApps(config);
-  await startExternalServers(config);
 
   var server = await io.serve(handler, config.hostname, port);
   print('Serving at http://${server.address.host}:${server.port}\n');
+
+  await buildWebApps(config);
+  await startExternalServers(config);
 }
 
 Future<void> buildWebApps(Config config) async {
@@ -82,7 +83,7 @@ Future<void> dart2Js(File entry) async {
 
   var output = File(entry.path + '.js');
 
-  if (await output.exists() && false) {
+  if (await output.exists()) {
     var outStat = await output.stat();
     var dirStat = await Directory(path.dirname(entry.path)).stat();
 
