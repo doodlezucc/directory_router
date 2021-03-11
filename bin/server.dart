@@ -63,6 +63,17 @@ Future<void> buildWebApps(Config config) async {
   }
 }
 
+Future<void> debugProcess(Process process) async {
+  process
+    ..stdout.listen((data) {
+      var s = utf8.decode(data).trim();
+      print(s.split('\n').map((line) => '- $line').join('\n'));
+    })
+    ..stderr.listen((data) {});
+
+  await process.exitCode;
+}
+
 Future<void> dart2Js(File entry) async {
   print('Building web app "${entry.path}"...');
   if (!await entry.exists()) {
@@ -71,7 +82,7 @@ Future<void> dart2Js(File entry) async {
 
   var output = File(entry.path + '.js');
 
-  if (await output.exists()) {
+  if (await output.exists() && false) {
     var outStat = await output.stat();
     var dirStat = await Directory(path.dirname(entry.path)).stat();
 
@@ -81,7 +92,15 @@ Future<void> dart2Js(File entry) async {
     }
   }
 
-  var process = await Process.start(
+  var pubProcess = await Process.start(
+    'pub',
+    ['get'],
+    runInShell: true,
+  );
+  await debugProcess(pubProcess);
+
+  print('- Compiling...');
+  var compileProcess = await Process.start(
     'dart2js',
     [
       '--no-source-maps',
@@ -91,16 +110,8 @@ Future<void> dart2Js(File entry) async {
     ],
     runInShell: true,
   );
+  await debugProcess(compileProcess);
 
-  process.stdout.listen((data) {
-    var s = utf8.decode(data).trim();
-    print(s.split('\n').map((line) => '- $line').join('\n'));
-  });
-  process.stderr.listen((data) {
-    stderr.add('- '.codeUnits + data);
-  });
-
-  await process.exitCode;
   print('');
   return File(output.path + '.deps').delete();
 }
