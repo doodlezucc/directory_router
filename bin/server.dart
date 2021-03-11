@@ -115,7 +115,7 @@ Future<void> dart2Js(File entry, {bool force = false}) async {
 
   var pubProcess = frontendProcesses[entry.path] = await Process.start(
     'pub',
-    ['get'],
+    ['get', '--verbosity=warning'],
     runInShell: true,
   );
   frontendProcesses[entry.path] = pubProcess;
