@@ -9,6 +9,7 @@ class ServerProcess {
   final int port;
   Process _process;
   Process get process => _process;
+  bool _booting = false;
 
   ServerProcess(this.name, this.port, Process process) : _process = process;
 }
@@ -40,12 +41,19 @@ Future<ServerProcess> startExternalServer(
 
   Watcher(cwd, pollingDelay: Duration(minutes: 1)).events.listen((event) async {
     var file = path.basename(event.path);
-    if (file.endsWith('FETCH_HEAD')) return; // It's a git thing
+    if (out._booting ||
+            file.endsWith('FETCH_HEAD') || // It's a git thing
+            file.endsWith('.swp') // Apparently created by Vim
+        ) {
+      return;
+    }
 
+    out._booting = true;
     out._process.kill();
     await out._process.exitCode;
     print(' $name - RESTART due to changes in $file');
     out._process = await startProcess();
+    out._booting = false;
   });
 
   return out;
