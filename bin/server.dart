@@ -168,6 +168,7 @@ Future<void> startExternalServers(Config config) async {
         name,
         backend.port ?? ++port,
         backend.server_entry,
+        backend.auto_restart,
       );
       print('Starting "$name"');
     }

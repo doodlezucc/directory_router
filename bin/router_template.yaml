@@ -9,6 +9,7 @@ backend:
     server_entry: ../path/to/different/server.dart # Remove this line if my-big-app already runs by itself
     # hostname: localhost                          # Defaults to [hostname]
     port: 7070                                     # Defaults to ++[port]
+    auto_restart: true                             # Defaults to false - Restarts server when files in the entry directory change
 
 frontend:
   # Redirect requests like http://localhost:8080/web-app/index.html to the local resource "../path/to/frontend/directory/index.html"

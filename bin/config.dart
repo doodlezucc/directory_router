@@ -17,6 +17,7 @@ class Config {
                   y['server_entry'],
                   y['hostname'],
                   y['port'],
+                  y['auto_restart'] ?? false,
                 ))),
         frontends = yaml['frontend'] == null
             ? {}
@@ -32,8 +33,9 @@ class Backend {
   final String server_entry;
   final String hostname;
   final int port;
+  final bool auto_restart;
 
-  Backend(this.server_entry, this.hostname, this.port);
+  Backend(this.server_entry, this.hostname, this.port, this.auto_restart);
 }
 
 class Frontend {

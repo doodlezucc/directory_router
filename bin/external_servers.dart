@@ -15,7 +15,7 @@ class ServerProcess {
 }
 
 Future<ServerProcess> startExternalServer(
-    String name, int port, String serverDartFile) async {
+    String name, int port, String serverDartFile, bool autoRestart) async {
   var cwd = path.dirname(serverDartFile);
   if (cwd.endsWith('/bin')) cwd = path.dirname(cwd);
 
@@ -39,23 +39,25 @@ Future<ServerProcess> startExternalServer(
   var process = await startProcess();
   var out = ServerProcess(name, port, process);
 
-  Watcher(cwd).events.listen((event) async {
-    var file = path.basename(event.path);
-    var now = DateTime.now().millisecondsSinceEpoch;
+  if (autoRestart) {
+    Watcher(cwd).events.listen((event) async {
+      var file = path.basename(event.path);
+      var now = DateTime.now().millisecondsSinceEpoch;
 
-    if (out._lastBoot > now - 1000 ||
-            file.endsWith('FETCH_HEAD') || // It's a git thing
-            file.endsWith('.swp') // Apparently created by Vim
-        ) {
-      return;
-    }
+      if (out._lastBoot > now - 1000 ||
+              file.endsWith('FETCH_HEAD') || // It's a git thing
+              file.endsWith('.swp') // Apparently created by Vim
+          ) {
+        return;
+      }
 
-    out._lastBoot = now;
-    out._process.kill();
-    await out._process.exitCode;
-    print(' $name - RESTART due to changes in $file');
-    out._process = await startProcess();
-  });
+      out._lastBoot = now;
+      out._process.kill();
+      await out._process.exitCode;
+      print(' $name - RESTART due to changes in $file');
+      out._process = await startProcess();
+    });
+  }
 
   return out;
 }
