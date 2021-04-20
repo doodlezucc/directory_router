@@ -234,14 +234,15 @@ Future<Response> processBackend(Request request, Config config) async {
     var response = await process(request, entry.key, (subPath) async {
       var process = backendProcesses[backend];
       var uri = Uri(
-        scheme: 'http',
+        scheme: request.requestedUri.scheme,
         host: backend.hostname ?? config.hostname,
         port: process?.port ?? backend.port,
         path: subPath,
         queryParameters: request.url.queryParameters,
       );
 
-      var myReq = http.StreamedRequest(request.method, uri);
+      var myReq = http.StreamedRequest(request.method, uri)
+        ..headers.addAll(request.headers);
       request.read().listen(
             myReq.sink.add,
             onDone: myReq.sink.close,
