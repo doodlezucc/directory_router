@@ -218,7 +218,7 @@ Future<Response> process(Request request, String match,
     var dirSubPath = request.url.path.substring(match.length);
 
     if (dirSubPath.isEmpty || dirSubPath.endsWith('/')) {
-      return Response.seeOther('/' + path.join(request.url.path, 'index'));
+      return Response.seeOther('/' + path.join(request.url.path, 'home'));
     }
     if (dirSubPath.startsWith('/')) {
       dirSubPath = dirSubPath.substring(1);
@@ -271,18 +271,26 @@ Future<Response> processBackend(Request request, Config config) async {
 Future<Response> processFrontend(Request request, Config config) async {
   for (var entry in config.frontends.entries) {
     var response = await process(request, entry.key, (subPath) async {
+      if (subPath == 'home' || subPath == 'index') {
+        subPath = 'index.html';
+      }
+
       var file = File(path.join(entry.value.directory, subPath));
 
-      if (await file.exists() ||
-          await (file = File(file.path + '.html')).exists()) {
-        var type = getMimeType(file.path) ?? 'text/plain';
-        return Response(
-          200,
-          body: file.openRead(),
-          headers: {'Content-Type': type},
-        );
+      if (!await file.exists()) {
+        file = File(file.path + '.html');
+        print('quiero ${file.path}?');
+        if (!await file.exists()) {
+          return null;
+        }
       }
-      return null;
+
+      var type = getMimeType(file.path) ?? 'text/plain';
+      return Response(
+        200,
+        body: file.openRead(),
+        headers: {'Content-Type': type},
+      );
     });
     if (response != null) return response;
   }
