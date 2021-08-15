@@ -208,6 +208,20 @@ String getMimeType(String filePath) {
       return 'image/svg+xml';
     case '.ico':
       return 'image/x-icon';
+    case '.png':
+      return 'image/png';
+    case '.jpg':
+      return 'image/jpeg';
+    case '.xml':
+      return 'text/xml';
+    case '.mp4':
+      return 'video/mp4';
+    case '.mp3':
+      return 'audio/mpeg';
+    case '.ogg':
+      return 'audio/ogg';
+    case '.wav':
+      return 'audio/wav';
   }
   return null;
 }
@@ -279,7 +293,6 @@ Future<Response> processFrontend(Request request, Config config) async {
 
       if (!await file.exists()) {
         file = File(file.path + '.html');
-        print('quiero ${file.path}?');
         if (!await file.exists()) {
           return null;
         }
