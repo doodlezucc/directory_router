@@ -37,16 +37,16 @@ void main(List<String> args) async {
     return;
   }
 
-  Response _cors(Response response) => response.change(headers: {
+  Response cors(Response response) => response.change(headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST',
         'Access-Control-Allow-Headers': 'Origin, Content-Type, X-Auth-Token',
       });
 
-  var _fixCORS = createMiddleware(responseHandler: _cors);
+  var fixCORS = createMiddleware(responseHandler: cors);
 
   var handler = const Pipeline()
-      .addMiddleware(_fixCORS)
+      .addMiddleware(fixCORS)
       .addHandler((request) => _echoRequest(request, config));
 
   listenToExit();
@@ -60,8 +60,8 @@ void main(List<String> args) async {
 
 Future<void> buildWebApps(Config config) async {
   for (var frontend in config.frontends.values) {
-    if (frontend.build_entry != null) {
-      var entry = File(path.join(frontend.directory, frontend.build_entry));
+    if (frontend.buildEntry != null) {
+      var entry = File(path.join(frontend.directory, frontend.buildEntry));
 
       Future<void> build(bool force) async =>
           await dart2Js(entry, force: force);
@@ -100,7 +100,7 @@ Future<void> dart2Js(File entry, {bool force = false}) async {
     return stderr.writeln('- Entry file does not exist!\n');
   }
 
-  var output = File(entry.path + '.js');
+  var output = File('${entry.path}.js');
 
   if (await output.exists()) {
     var outStat = await output.stat();
@@ -136,7 +136,7 @@ Future<void> dart2Js(File entry, {bool force = false}) async {
   if (await debugProcess(compileProcess) == -1) return;
 
   print('');
-  await File(output.path + '.deps').delete();
+  await File('${output.path}.deps').delete();
 }
 
 void onExit() {
@@ -162,13 +162,13 @@ void listenToExit() {
 Future<void> startExternalServers(Config config) async {
   var port = config.port;
   for (var backend in config.backends.values) {
-    if (backend.server_entry != null) {
-      var name = backend.server_entry!;
+    if (backend.serverEntry != null) {
+      var name = backend.serverEntry!;
       backendProcesses[backend] = await startExternalServer(
         name,
         backend.port ?? ++port,
-        backend.server_entry!,
-        backend.auto_restart,
+        backend.serverEntry!,
+        backend.autoRestart,
       );
       print('Starting "$name"');
     }
@@ -232,7 +232,8 @@ Future<Response?> process(Request request, String match,
     var dirSubPath = request.url.path.substring(match.length);
 
     if (dirSubPath.isEmpty || dirSubPath.endsWith('/')) {
-      return Response.seeOther('/' + path.join(request.url.path, 'home'));
+      final homePath = path.join(request.url.path, 'home');
+      return Response.seeOther('/$homePath');
     }
     if (dirSubPath.startsWith('/')) {
       dirSubPath = dirSubPath.substring(1);
@@ -292,7 +293,7 @@ Future<Response?> processFrontend(Request request, Config config) async {
       var file = File(path.join(entry.value.directory, subPath));
 
       if (!await file.exists()) {
-        file = File(file.path + '.html');
+        file = File('${file.path}.html');
         if (!await file.exists()) {
           return null;
         }
