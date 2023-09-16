@@ -4,15 +4,15 @@ description: A web server built using the shelf package.
 # homepage: https://www.example.com
 
 environment:
-  sdk: '>=2.10.0 <3.0.0'
+  sdk: ">=2.12.0 <3.0.0"
 
 dependencies:
-  args: ^1.6.0
-  shelf: ^0.7.5
-  http: ^0.12.2
-  yaml: ^2.2.1
-  watcher: ^1.0.0
-  path: ^1.8.0
+  args: ^2.4.2
+  shelf: ^1.4.1
+  http: ^1.1.0
+  yaml: ^3.1.2
+  watcher: ^1.1.0
+  path: ^1.8.3
 
 dev_dependencies:
-  pedantic: ^1.9.0
+  lints: ^2.1.1
