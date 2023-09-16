@@ -136,7 +136,7 @@ Future<void> dart2Js(File entry, {bool force = false}) async {
   if (await debugProcess(compileProcess) == -1) return;
 
   print('');
-  return File(output.path + '.deps').delete();
+  await File(output.path + '.deps').delete();
 }
 
 void onExit() {
@@ -163,11 +163,11 @@ Future<void> startExternalServers(Config config) async {
   var port = config.port;
   for (var backend in config.backends.values) {
     if (backend.server_entry != null) {
-      var name = backend.server_entry;
+      var name = backend.server_entry!;
       backendProcesses[backend] = await startExternalServer(
         name,
         backend.port ?? ++port,
-        backend.server_entry,
+        backend.server_entry!,
         backend.auto_restart,
       );
       print('Starting "$name"');
@@ -196,7 +196,7 @@ Future<Config> loadRoutes() async {
   return Config(loadYaml(data));
 }
 
-String getMimeType(String filePath) {
+String? getMimeType(String filePath) {
   switch (path.extension(filePath)) {
     case '.html':
       return 'text/html';
@@ -226,8 +226,8 @@ String getMimeType(String filePath) {
   return null;
 }
 
-Future<Response> process(Request request, String match,
-    Future<Response> Function(String subPath) generateResponse) async {
+Future<Response?> process(Request request, String match,
+    Future<Response?> Function(String subPath) generateResponse) async {
   if (request.url.path.startsWith(match)) {
     var dirSubPath = request.url.path.substring(match.length);
 
@@ -243,7 +243,7 @@ Future<Response> process(Request request, String match,
   return null;
 }
 
-Future<Response> processBackend(Request request, Config config) async {
+Future<Response?> processBackend(Request request, Config config) async {
   for (var entry in config.backends.entries) {
     var backend = entry.value;
     var response = await process(request, entry.key, (subPath) async {
@@ -282,7 +282,7 @@ Future<Response> processBackend(Request request, Config config) async {
   return null;
 }
 
-Future<Response> processFrontend(Request request, Config config) async {
+Future<Response?> processFrontend(Request request, Config config) async {
   for (var entry in config.frontends.entries) {
     var response = await process(request, entry.key, (subPath) async {
       if (subPath == 'home' || subPath == 'index') {

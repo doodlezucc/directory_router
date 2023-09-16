@@ -30,9 +30,9 @@ class Config {
 }
 
 class Backend {
-  final String server_entry;
-  final String hostname;
-  final int port;
+  final String? server_entry;
+  final String? hostname;
+  final int? port;
   final bool auto_restart;
 
   Backend(this.server_entry, this.hostname, this.port, this.auto_restart);
@@ -40,7 +40,7 @@ class Backend {
 
 class Frontend {
   final String directory;
-  final String build_entry;
+  final String? build_entry;
 
   Frontend(this.directory, this.build_entry);
 }
